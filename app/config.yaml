@@ -1,0 +1,14 @@
+vector:
+  bin_path: /opt/vector/bin/vector
+git-sync:
+  bin_path: /opt/git-sync/bin/git-sync
+vector-agent:
+  repo: 
+    url: https://github.com/alexeynl/vector-configs.git
+    ssh_key_path: 
+    ssh_known_hosts_path:
+  config_subdirs1:
+    - test
+  env_files:
+    - /etc/vector/.env
+  root_vrl_path_env_name: VECTOR_CONFIG_PATH
