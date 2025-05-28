@@ -1,7 +1,10 @@
 git-sync:
   bin_path: /opt/git-sync/bin/git-sync
+  env_files:
+  - /opt/git-sync/.env-agent-default
 vector:
   bin_path: /opt/vector/bin/vector
+  systemd_unit: vector.service
 vector-agent:
   config_root_dir: laptop-01-w
   config_subdir_patterns: []

@@ -16,6 +16,7 @@ logger.setLevel("DEBUG")
 
 # defaults
 default_vector_bin_path =  "/usr/bin/vector"
+default_vector_systemd_unit = "vector.service"
 default_gitsync_bin_path = "/usr/bin/git-sync"
 default_synced_config_dir =     "01-synced"
 default_hold_config_dir =       "02-hold"
@@ -36,6 +37,7 @@ class VectorAgent:
         self._valid_config_path = os.path.join(self._vector_configs_workdir, default_valid_config_dir)
         self._active_config_path = os.path.join(self._vector_configs_workdir, default_active_config_dir)
         self._vector_bin_path = default_vector_bin_path
+        self._vector_systemd_unit = default_vector_systemd_unit
         self._gitsync_bin_path = default_gitsync_bin_path
         self._vector_reload_timeout = default_vector_reload_timeout
         self._vector_log_path = default_vector_log_path
@@ -44,7 +46,13 @@ class VectorAgent:
         self._vector_config_root_dir = None
         self._vector_config_subdir_patterns = None
         self._vector_service_status = None
-        
+        self._synced_git_branch = ""
+        self._active_git_branch = ""
+        self._synced_config_hash = ""
+        self._active_config_hash = ""
+        self._apply_status = ""
+        self._gitsync_env_files = []
+
         # load values from Agent config
         self._load_config(config_path)
         # todo: add all attributes validation
@@ -70,7 +78,13 @@ class VectorAgent:
         logger.debug("_vector_config_subdir_patterns = {}".format(self._vector_config_subdir_patterns))
         logger.debug("_vector_service_status = {}".format(self._vector_service_status))
         logger.debug("_input_env_files = {}".format(self._input_env_files))
+        logger.debug("_synced_git_branch = {}".format(self._synced_git_branch))
+        logger.debug("_active_git_branch = {}".format(self._active_git_branch))
+        logger.debug("_synced_config_hash = {}".format(self._synced_config_hash))
+        logger.debug("_active_config_hash = {}".format(self._active_config_hash))
+        logger.debug("_apply_status = {}".format(self._apply_status))
         logger.debug("_output_env_file = {}".format(self._output_env_file))
+        logger.debug("_gitsync_env_files = {}".format(self._gitsync_env_files))
         
     def _load_config(self, config_path: str):
         with open(config_path, 'r') as f:
@@ -81,10 +95,20 @@ class VectorAgent:
                 pass
 
             try:
+                self._vector_systemd_unit = data["vector"]["systemd_unit"]
+            except KeyError:
+                pass
+
+            try:
                 self._gitsync_bin_path = data["git-sync"]["bin_path"]
             except KeyError:
                 pass
-            
+
+            try:
+                self._gitsync_env_files = data["git-sync"]["env_files"]
+            except KeyError:
+                pass
+
             try:
                 self._repo_url = data["vector-agent"]["repo"]["url"]
             except KeyError:
@@ -134,7 +158,7 @@ class VectorAgent:
             return result
 
     def _sync_branch(self, repo_url: str, branch: str, gitsync_root_path: str, git_sync_link_path: str):
-        cmd = [gitsync_bin_path, "--repo", repo_url, "--ref", branch, "--root", gitsync_root_path, "--link", git_sync_link_path, "--one-time"]
+        cmd = [self._gitsync_bin_path, "--repo", repo_url, "--ref", branch, "--root", gitsync_root_path, "--link", git_sync_link_path, "--one-time"]
         print("Sync command: {}".format(" ".join(cmd)))
         p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         result = {}
@@ -242,10 +266,10 @@ class VectorAgent:
         envs = load_envs(self._input_env_files)
         envs = envs | {self._root_vrl_path_env_name: config_path}
         if len(self._vector_config_subdir_patterns) == 0:
-            cmd = [vector_bin_path, "validate", "-C", os.path.join(config_path, "**")]
+            cmd = [self._vector_bin_path, "validate", "-C", os.path.join(config_path, "**")]
         else:
             config_dirs_str = ",".join([os.path.join(config_path, subdir) for subdir in self._vector_config_subdir_patterns])
-            cmd = [vector_bin_path, "validate", "-C", config_dirs_str]
+            cmd = [self._vector_bin_path, "validate", "-C", config_dirs_str]
         logger.info("Running validation command: {}".format(" ".join(cmd)))
         p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=envs)
         for line in p.stdout.splitlines():
@@ -261,8 +285,35 @@ class VectorAgent:
 
     def apply_config(self, config_path: str):
         pass
-        
+
+    def _get_synced_branch(self):
+        branch = "master"
+        logger.debug("Searching for GITSYNC_REF in {}".format(self._gitsync_env_files))
+        for path in self._gitsync_env_files:
+            with open(path, "r") as f:
+                data = f.readlines()
+                for line in data:
+                    if line.startswith("GITSYNC_REF"):
+                        parts = line.split("=")
+                        if len(parts) > 1:
+                            branch = parts[1]
+        return branch
+    
+    def _get_synced_hash(self):
+        return os.path.basename(os.path.realpath(self._synced_config_path))
+
     def apply_synced_config(self):
+        logger.info("Starting to apply synced config")
+        target_hash = self._get_synced_hash()
+        self._synced_config_hash = target_hash
+        target_branch = self._get_synced_branch()
+        self._synced_git_branch = target_branch
+        logger.info("Target branch: {}, target hash: {}".format(target_branch, target_hash))
+        logger.debug("Active branch: {}, active hash: {}".format(self._active_git_branch, self._active_config_hash))
+        if target_hash == self._active_config_hash:
+            logger.info("Target hash is the same as active. No action needed.")
+            return 0
+
         logger.debug("Executing apply_config_specs()")
         self.apply_config_specs()
         logger.debug("Vector config root dir and vector config subdir patterns applied".format(self._vector_config_root_dir, self._vector_config_subdir_patterns))
@@ -276,22 +327,22 @@ class VectorAgent:
                 else:
                     logger.info("Could not stop Vector service")
         else:
-            logger.info("Starting to apply synced config")
+            self._apply_status = "in_progress"
             logger.info("Synced config path: {}".format(self._synced_config_path))
-            self._synced_config_hash = os.path.basename(os.path.realpath(self._synced_config_path))
             config_root_dir = self._vector_config_root_dir
-            logger.info("Make a copy of config (snapshot), snapshot name is synced config hash {}".format(self._synced_config_hash))
+            logger.info("Make a copy of config (snapshot), snapshot name is synced config hash {}".format(target_hash))
             # /opt/vector-agent/vector-confdir/290348a80a8f8d0074bu233
-            hold_snapshot_path = os.path.join(self._hold_config_path, self._synced_config_hash)
+            hold_snapshot_path = os.path.join(self._hold_config_path, target_hash)
             shutil.copytree(self._synced_config_path, hold_snapshot_path)
             snapshot_current_path = hold_snapshot_path
             if config_root_dir:
                 # # /opt/vector-agent/vector-confdir/290348a80a8f8d0074bu233/collector-01
                 config_to_validate_path = os.path.join(snapshot_current_path, config_root_dir)
+            self._apply_status = "validation"
             validation_result = self.validate_config(config_to_validate_path)
             if validation_result["status"] == "ok":
                 logger.info("Config validation success")
-                valid_snapshot_path = os.path.join(self._valid_config_path, self._synced_config_hash)
+                valid_snapshot_path = os.path.join(self._valid_config_path, target_hash)
                 logger.debug("Moving validated snapshot to validated dir: {}".format(valid_snapshot_path))
                 shutil.move(snapshot_current_path, valid_snapshot_path)
                 snapshot_current_path = valid_snapshot_path
@@ -299,14 +350,16 @@ class VectorAgent:
                 logger.info("Checking if vector service is running")
                 self._refresh_vector_service_status()
                 logger.debug("Vector status is: {}".format(self._vector_service_status))
+                self._apply_status = "applying"
                 if self._vector_service_status == "running":
                     logger.info("Vector service is running, trying to apply config")
                     logger.info("Make a backup of current active config")
                     current_active_config_path = os.path.realpath(self._active_config_path)
-                    logger.debug("Copy files from {} to {}".format(current_active_config_path, current_active_config_path + "_" + "backup"))
-                    shutil.copytree(current_active_config_path, current_active_config_path + "_" + "backup")
+                    current_active_config_backup_path = current_active_config_path + "_" + "backup"
+                    logger.debug("Copy files from {} to {}".format(current_active_config_path, current_active_config_backup_path))
+                    shutil.copytree(current_active_config_path, current_active_config_backup_path)
                     # replace symlink
-                    tmp_symlink = self._active_config_path + self._synced_config_hash
+                    tmp_symlink = self._active_config_path + target_hash
                     os.symlink(snapshot_current_path, tmp_symlink, target_is_directory=False)
                     os.rename(tmp_symlink, self._active_config_path)
                     # remove original current active config, keep only backup
@@ -324,7 +377,11 @@ class VectorAgent:
                                 break
                     if vector_reload_success:
                         logger.info("Successed to apply new config to running Vector")
-                        self._active_config_hash = self._synced_config_hash
+                        logger.debug("Remove backup of old config {}".format(current_active_config_backup_path))
+                        shutil.rmtree(current_active_config_path + "_" + "backup")
+                        self._active_git_branch = target_branch
+                        self._active_config_hash = target_hash
+                        self._apply_status = "successed"
                         logger.info("Finished to apply synced config")
                         return 0
                     else:
@@ -336,6 +393,7 @@ class VectorAgent:
                         os.symlink(current_active_config_path, tmp_symlink, target_is_directory=False)
                         os.rename(tmp_symlink, self._active_config_path)
                         logger.info("Finished to apply synced config")
+                        self._apply_status = "failed"
                         return 1
                 else:
                     logger.info("Make validated snapshot as active")
@@ -349,18 +407,60 @@ class VectorAgent:
                     p = subprocess.run(["systemctl", "start", "--quiet", "vector.service"])
                     if p.returncode == 0:
                         logger.info("Vector successfully started")
+                        self._active_git_branch = target_branch
+                        self._active_config_hash = target_hash
+                        self._apply_status = "successed"
                         logger.info("Finished to apply synced config")
                         return 0
                     else:
                         logger.error("Vector failed to start")
+                        self._apply_status = "failed"
                         logger.info("Finished to apply synced config")
                         return 1
             else:
                 logger.info("Config validation failed")
                 logger.info("vector validate output: {}".format(validation_result["output"]))
+                self._apply_status = "failed"
                 logger.info("Finished to apply synced config")
                 return 1
-                
+
+    def get_status(self):
+        result = {}
+        result["synced_git_branch"] = self._synced_git_branch
+        result["active_git_branch"] = self._active_git_branch
+        result["synced_hash"] = self._synced_config_hash
+        result["active_hash"] = self._active_config_hash
+        result["apply_status"] = self._apply_status
+        status_messages = []
+
+        vector_running_latest_config = False
+        if self._active_config_hash == self._synced_config_hash:
+            vector_running_latest_config = True
+        else:
+            status_messages.append("Vector not running latest config")
+
+        vector_service_running = False
+        if get_systemd_service_status(self._vector_systemd_unit) == "running":
+            vector_service_running = True
+        else:
+            status_messages.append("Vector systemd service is not running")
+        
+        if not vector_running_latest_config or not vector_service_running:
+            status = "fail"
+        else:
+            status = "ok"
+        
+        result["status"] = status
+        result["message"] = "|".join(status_messages)
+
+        return result
+
+def get_systemd_service_status(unit: str):
+        p = subprocess.run(["systemctl", "is-active", "--quiet", unit])
+        if p.returncode == 0:
+            return "running"
+        else:
+            return "stopped"
 
 def get_envvars(env_file='.env', set_environ=True, ignore_not_found_error=False, exclude_override=()):
     """
@@ -421,5 +521,5 @@ def follow(thefile):
             continue
         yield line
 
-x = VectorAgent("/mnt/d/dev/github/vector-agent/app/config.yaml")
-x.apply_synced_config()
+#x = VectorAgent("/mnt/d/dev/github/vector-agent/app/config.yaml")
+#x.apply_synced_config()
