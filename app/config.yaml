@@ -7,7 +7,9 @@ vector:
   systemd_unit: vector.service
 vector-agent:
   config_root_dir: laptop-01-w
-  config_subdir_patterns: []
+  config_subdir_patterns:
+  - main/**
+  configs_workdir: /opt/vector-agent/vector-confdir
   env_files:
     input:
     - /etc/vector/.env

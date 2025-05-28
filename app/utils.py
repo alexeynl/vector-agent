@@ -110,6 +110,11 @@ class VectorAgent:
                 pass
 
             try:
+                self._repo_url = data["vector-agent"]["configs_workdir"]
+            except KeyError:
+                pass
+
+            try:
                 self._repo_url = data["vector-agent"]["repo"]["url"]
             except KeyError:
                 pass
@@ -187,7 +192,9 @@ class VectorAgent:
                         except KeyError:
                             root_dir = "."
                         try:
-                            for dir_pattern in rule["includes"]:
+                            dir_patterns = rule["includes"]
+                            subdir_patterns_list = []
+                            for dir_pattern in dir_patterns:
                                 subdir_patterns_list.append(dir_pattern)
                         except KeyError:
                             subdir_patterns_list = []
