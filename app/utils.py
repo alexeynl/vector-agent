@@ -29,20 +29,17 @@ default_apply_rules_config_name = "apply_rules.yaml"
 
 class VectorAgent:
     def __init__(self, config_path):
+
+        # init values
         self._config_path = config_path
         self._status = "inactive"
         self._vector_configs_workdir = default_vector_configs_workdir
-        self._synced_config_path = os.path.join(self._vector_configs_workdir, default_synced_config_dir)
-        self._hold_config_path = os.path.join(self._vector_configs_workdir, default_hold_config_dir)
-        self._valid_config_path = os.path.join(self._vector_configs_workdir, default_valid_config_dir)
-        self._active_config_path = os.path.join(self._vector_configs_workdir, default_active_config_dir)
         self._vector_bin_path = default_vector_bin_path
         self._vector_systemd_unit = default_vector_systemd_unit
         self._gitsync_bin_path = default_gitsync_bin_path
         self._vector_reload_timeout = default_vector_reload_timeout
         self._vector_log_path = default_vector_log_path
         self._apply_rules_config_name = default_apply_rules_config_name
-        self._apply_rules_config_path = os.path.join(self._synced_config_path, self._apply_rules_config_name)
         self._vector_config_root_dir = None
         self._vector_config_subdir_patterns = None
         self._vector_service_status = None
@@ -55,6 +52,13 @@ class VectorAgent:
 
         # load values from Agent config
         self._load_config(config_path)
+
+        self._synced_config_path = os.path.join(self._vector_configs_workdir, default_synced_config_dir)
+        self._hold_config_path = os.path.join(self._vector_configs_workdir, default_hold_config_dir)
+        self._valid_config_path = os.path.join(self._vector_configs_workdir, default_valid_config_dir)
+        self._active_config_path = os.path.join(self._vector_configs_workdir, default_active_config_dir)
+        self._apply_rules_config_path = os.path.join(self._synced_config_path, self._apply_rules_config_name)
+
         # todo: add all attributes validation
         if not hasattr(self, "_config_subdirs"):
             self._config_subdirs = []
@@ -110,7 +114,7 @@ class VectorAgent:
                 pass
 
             try:
-                self._repo_url = data["vector-agent"]["configs_workdir"]
+                self._vector_configs_workdir = data["vector-agent"]["configs_workdir"]
             except KeyError:
                 pass
 
@@ -342,6 +346,7 @@ class VectorAgent:
             hold_snapshot_path = os.path.join(self._hold_config_path, target_hash)
             shutil.copytree(self._synced_config_path, hold_snapshot_path)
             snapshot_current_path = hold_snapshot_path
+            config_to_validate_path = snapshot_current_path
             if config_root_dir:
                 # # /opt/vector-agent/vector-confdir/290348a80a8f8d0074bu233/collector-01
                 config_to_validate_path = os.path.join(snapshot_current_path, config_root_dir)
@@ -427,6 +432,8 @@ class VectorAgent:
             else:
                 logger.info("Config validation failed")
                 logger.info("vector validate output: {}".format(validation_result["output"]))
+                logger.debug("Removing snapshor from dir: {}".format(snapshot_current_path))
+                shutil.rmtree(snapshot_current_path)
                 self._apply_status = "failed"
                 logger.info("Finished to apply synced config")
                 return 1
