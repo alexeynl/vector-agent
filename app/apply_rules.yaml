@@ -1,0 +1,15 @@
+rules:
+  rule-01:
+    host_patterns: 
+      - .*collector-01.*
+    root_dir: collector-01
+    includes:
+      - main
+      - syslog/**
+      - http/**
+  rule-02:
+    host_patterns: 
+      - .*collector-02.*
+    root_dir: collector-02
+    includes:
+      - desktop/**
