@@ -20,4 +20,5 @@ vector-agent:
     ssh_key_path: null
     ssh_known_hosts_path: null
     url: https://github.com/alexeynl/vector-configs.git
+    use_gitsync_settings: true
   root_vrl_path_env_name: VECTOR_CONFIG_PATH

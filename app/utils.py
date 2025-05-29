@@ -51,6 +51,7 @@ class VectorAgent:
         self._active_config_hash = ""
         self._apply_status = ""
         self._gitsync_env_files = []
+        self._repo_use_gitsync_settings = False
 
         # load values from Agent config
         self._load_config(config_path)
@@ -60,6 +61,14 @@ class VectorAgent:
         self._valid_config_path = os.path.join(self._vector_configs_workdir, default_valid_config_dir)
         self._active_config_path = os.path.join(self._vector_configs_workdir, default_active_config_dir)
         self._apply_rules_config_path = os.path.join(self._synced_config_path, self._apply_rules_config_name)
+
+        # load value from git-sync env file
+        if self._repo_use_gitsync_settings:
+            if self._gitsync_env_files and len(self._gitsync_env_files) > 0:
+                logger.debug("Loading repo setting from git sync env")
+                self._load_repo_gitsync_settings(self._gitsync_env_files)
+            else:
+                logger.error("Could not load repo setting. gitsync env file paths has not been set")
 
         # todo: add all attributes validation
         if not hasattr(self, "_config_subdirs"):
@@ -92,6 +101,10 @@ class VectorAgent:
         logger.debug("_apply_status = {}".format(self._apply_status))
         logger.debug("_output_env_file = {}".format(self._output_env_file))
         logger.debug("_gitsync_env_files = {}".format(self._gitsync_env_files))
+        logger.debug("_repo_use_gitsync_settings = {}".format(self._repo_use_gitsync_settings))
+        logger.debug("_ssh_key_path = {}".format(self._ssh_key_path))
+        logger.debug("_ssh_known_hosts_path = {}".format(self._ssh_known_hosts_path))
+        logger.debug("_repo_url = {}".format(self._repo_url))
         
     def _load_config(self, config_path: str):
         with open(config_path, 'r') as f:
@@ -132,6 +145,11 @@ class VectorAgent:
                 pass
 
             try:
+                self._repo_use_gitsync_settings = data["vector-agent"]["repo"]["use_gitsync_settings"]
+            except KeyError:
+                pass
+
+            try:
                 self._repo_url = data["vector-agent"]["repo"]["url"]
             except KeyError:
                 pass
@@ -166,6 +184,18 @@ class VectorAgent:
             except KeyError:
                 pass
 
+    def _load_repo_gitsync_settings(self, env_paths: list):
+        vars_dict = {}
+        for env_path in env_paths:
+            with open(env_path, 'r') as fh:
+                vars_dict = vars_dict | dict(
+                    tuple(line.replace('\n', '').split('='))
+                    for line in fh.readlines() if not line.startswith('#')
+                )
+        self._ssh_key_path = vars_dict["GITSYNC_SSH_KEY_FILE"]
+        self._ssh_known_hosts_path = vars_dict["GITSYNC_SSH_KNOWN_HOSTS_FILE"]
+        self._repo_url = vars_dict["GITSYNC_REPO"]
+
     def validate_config_branch(self, branch: str):
         with tempfile.TemporaryDirectory() as tmpdirname:
             gitsync_root = os.path.join(tmpdirname, "root")
@@ -183,11 +213,17 @@ class VectorAgent:
 
     def _sync_branch(self, repo_url: str, branch: str, gitsync_root_path: str, git_sync_link_path: str):
         cmd = [self._gitsync_bin_path, "--repo", repo_url, "--ref", branch, "--root", gitsync_root_path, "--link", git_sync_link_path, "--one-time"]
+        if "@git" in repo_url or repo_url.startswith("ssh://"):
+            logger.debug("SSH protocol used for repo")
+            cmd.extend(["--ssh-key-file", self._ssh_key_path, "--ssh-known-hosts-file", self._ssh_known_hosts_path])
+        else:
+            logger.debug("No SSH protocol used for repo")
         logger.debug("Sync command: {}".format(" ".join(cmd)))
         p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         result = {}
         result_status = "ok"
         if p.returncode != 0:
+            logger.error("Repo one time sync ends with error. stderr:{}".format(p.stderr.decode("utf8")))
             result_status = "fail"
             if "fatal: couldn't find remote ref" in p.stderr.decode("utf8"):
                 result["reason"] = "branch not found"
