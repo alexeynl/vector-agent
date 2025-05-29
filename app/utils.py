@@ -328,7 +328,7 @@ class VectorAgent:
                     if line.startswith("GITSYNC_REF"):
                         parts = line.split("=")
                         if len(parts) > 1:
-                            branch = parts[1]
+                            branch = parts[1].rstrip()
         return branch
     
     def _get_synced_hash(self):
