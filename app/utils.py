@@ -254,13 +254,16 @@ class VectorAgent:
             for i, line in enumerate(env_data):
                 if line.startswith("VECTOR_CONFIG_DIR"):
                     logger.debug("Found line {} start with VECTOR_CONFIG_DIR".format(line))
-                    env_data[i] = config_env_var
+                    env_data[i] = config_env_var + "\n"
                     logger.debug("Line replaced with value {}".format(config_env_var))
                     found = True
                     break
             if not found:
                 logger.debug("Not found line started with VECTOR_CONFIG_DIR, append new line: {}".format(config_env_var))
-                env_data.append(config_env_var)
+                if not env_data[-1].endswith("\n"):
+                    logger.debug("Last line of env file {} not ends with new line, adding new line".format(self._output_env_file))
+                    env_data[-1] = env_data[-1] + "\n"
+                env_data.append(config_env_var + "\n")
             logger.debug("Write content {} to file {}".format(env_data, self._output_env_file))
             with open(self._output_env_file, "w") as f:
                 f.writelines(env_data)
