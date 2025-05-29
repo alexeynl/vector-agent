@@ -17,6 +17,7 @@ logger.setLevel("DEBUG")
 # defaults
 default_vector_bin_path =  "/usr/bin/vector"
 default_vector_systemd_unit = "vector.service"
+default_vector_log_path = "/var/log/messages"
 default_vector_embedded_config_dirs = []
 default_gitsync_bin_path = "/usr/bin/git-sync"
 default_synced_config_dir =     "01-synced"
@@ -24,7 +25,6 @@ default_hold_config_dir =       "02-hold"
 default_valid_config_dir =      "03-valid"
 default_active_config_dir =     "04-active"
 default_vector_reload_timeout = 60*2 #2 minutes
-default_vector_log_path = "/var/log/messages"
 default_vector_configs_workdir = "/opt/vector-agent/vector-confdir"
 default_apply_rules_config_name = "apply_rules.yaml"
 
@@ -37,10 +37,10 @@ class VectorAgent:
         self._vector_configs_workdir = default_vector_configs_workdir
         self._vector_bin_path = default_vector_bin_path
         self._vector_systemd_unit = default_vector_systemd_unit
+        self._vector_log_path = default_vector_log_path
         self._vector_embedded_config_dirs = default_vector_embedded_config_dirs
         self._gitsync_bin_path = default_gitsync_bin_path
         self._vector_reload_timeout = default_vector_reload_timeout
-        self._vector_log_path = default_vector_log_path
         self._apply_rules_config_name = default_apply_rules_config_name
         self._vector_config_root_dir = None
         self._vector_config_subdir_patterns = None
@@ -103,6 +103,11 @@ class VectorAgent:
 
             try:
                 self._vector_systemd_unit = data["vector"]["systemd_unit"]
+            except KeyError:
+                pass
+
+            try:
+                self._vector_systemd_unit = data["vector"]["log_path"]
             except KeyError:
                 pass
 
