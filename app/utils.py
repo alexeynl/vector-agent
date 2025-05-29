@@ -170,7 +170,9 @@ class VectorAgent:
         with tempfile.TemporaryDirectory() as tmpdirname:
             gitsync_root = os.path.join(tmpdirname, "root")
             gitsync_link = os.path.join(tmpdirname, "configs")
+            logger.debug("Starting to sync config from branch {} to directory {}".format(branch, gitsync_link))
             sync_result = self._sync_branch(self._repo_url, branch, gitsync_root, gitsync_link)
+            logger.debug("Sync status: ".format(sync_result["status"]))
             result = {}
             if sync_result["status"] == "fail":
                 result["status"] = "fail"
@@ -181,7 +183,7 @@ class VectorAgent:
 
     def _sync_branch(self, repo_url: str, branch: str, gitsync_root_path: str, git_sync_link_path: str):
         cmd = [self._gitsync_bin_path, "--repo", repo_url, "--ref", branch, "--root", gitsync_root_path, "--link", git_sync_link_path, "--one-time"]
-        print("Sync command: {}".format(" ".join(cmd)))
+        logger.debug("Sync command: {}".format(" ".join(cmd)))
         p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         result = {}
         result_status = "ok"

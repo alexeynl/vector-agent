@@ -6,7 +6,7 @@ vector:
   bin_path: /opt/vector/bin/vector
   embedded_config_dirs:
   - /etc/vector
-  log_path: /var/log/message
+  log_path: /var/log/messages
   systemd_unit: vector.service
 vector-agent:
   config_root_dir: .
