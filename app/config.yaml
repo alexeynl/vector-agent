@@ -4,6 +4,8 @@ git-sync:
   - /opt/git-sync/.env-agent-default
 vector:
   bin_path: /opt/vector/bin/vector
+  embedded_config_dirs:
+  - /etc/vector
   systemd_unit: vector.service
 vector-agent:
   config_root_dir: laptop-01-w

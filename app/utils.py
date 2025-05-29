@@ -17,6 +17,7 @@ logger.setLevel("DEBUG")
 # defaults
 default_vector_bin_path =  "/usr/bin/vector"
 default_vector_systemd_unit = "vector.service"
+default_vector_embedded_config_dirs = []
 default_gitsync_bin_path = "/usr/bin/git-sync"
 default_synced_config_dir =     "01-synced"
 default_hold_config_dir =       "02-hold"
@@ -36,6 +37,7 @@ class VectorAgent:
         self._vector_configs_workdir = default_vector_configs_workdir
         self._vector_bin_path = default_vector_bin_path
         self._vector_systemd_unit = default_vector_systemd_unit
+        self._vector_embedded_config_dirs = default_vector_embedded_config_dirs
         self._gitsync_bin_path = default_gitsync_bin_path
         self._vector_reload_timeout = default_vector_reload_timeout
         self._vector_log_path = default_vector_log_path
@@ -68,6 +70,7 @@ class VectorAgent:
 
         logger.debug("Inited Vector Agent with the following values:")
         logger.debug("_vector_configs_workdir = {}".format(self._vector_configs_workdir))
+        logger.debug("_vector_embedded_confi_dirs = {}".format(self._vector_embedded_config_dirs))
         logger.debug("_synced_config_path = {}".format(self._synced_config_path))
         logger.debug("_hold_config_path = {}".format(self._hold_config_path))
         logger.debug("_valid_config_path = {}".format(self._valid_config_path))
@@ -100,6 +103,11 @@ class VectorAgent:
 
             try:
                 self._vector_systemd_unit = data["vector"]["systemd_unit"]
+            except KeyError:
+                pass
+
+            try:
+                self._vector_embedded_config_dirs = data["vector"]["embedded_config_dirs"]
             except KeyError:
                 pass
 
@@ -226,10 +234,14 @@ class VectorAgent:
             data["vector-agent"]["config_subdir_patterns"] = config_specs["subdir_patterns"]
             self._vector_config_root_dir = config_specs["root_dir"]
             self._vector_config_subdir_patterns = config_specs["subdir_patterns"]
-            if len(self._vector_config_subdir_patterns) > 0:
-                config_env_var = "VECTOR_CONFIG_DIR=" + ",".join([os.path.join(self._active_config_path, subdir_pattern) for subdir_pattern in self._vector_config_subdir_patterns])
+            if len(self._vector_embedded_config_dirs) > 0:
+                config_env_var = "VECTOR_CONFIG_DIR=" + ",".join(self._vector_embedded_config_dirs)
             else:
-                config_env_var = "VECTOR_CONFIG_DIR=" + os.path.join(self._active_config_path, "**")
+                config_env_var = "VECTOR_CONFIG_DIR="
+            if len(self._vector_config_subdir_patterns) > 0:
+                config_env_var = config_env_var + "," + ",".join([os.path.join(self._active_config_path, subdir_pattern) for subdir_pattern in self._vector_config_subdir_patterns])
+            else:
+                config_env_var = config_env_var + "," + os.path.join(self._active_config_path, "**")
             logger.debug("Saving env variable {} to env file: {}".format(config_env_var, self._output_env_file))
             with open(self._output_env_file, "r") as f:
                 env_data = f.readlines()
@@ -275,6 +287,7 @@ class VectorAgent:
         result = {}
         status = "ok"
         envs = load_envs(self._input_env_files)
+        envs = envs | os.environ
         envs = envs | {self._root_vrl_path_env_name: config_path}
         if len(self._vector_config_subdir_patterns) == 0:
             cmd = [self._vector_bin_path, "validate", "-C", os.path.join(config_path, "**")]
