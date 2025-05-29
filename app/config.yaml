@@ -9,9 +9,8 @@ vector:
   log_path: /var/log/message
   systemd_unit: vector.service
 vector-agent:
-  config_root_dir: laptop-01-w
-  config_subdir_patterns:
-  - main/**
+  config_root_dir: .
+  config_subdir_patterns: []
   configs_workdir: /opt/vector-agent/vector-confdir
   env_files:
     input:

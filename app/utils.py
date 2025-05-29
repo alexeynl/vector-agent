@@ -107,7 +107,7 @@ class VectorAgent:
                 pass
 
             try:
-                self._vector_systemd_unit = data["vector"]["log_path"]
+                self._vector_log_path = data["vector"]["log_path"]
             except KeyError:
                 pass
 
@@ -491,11 +491,15 @@ class VectorAgent:
         return result
 
 def get_systemd_service_status(unit: str):
+        cmd = ["systemctl", "is-active", "--quiet", unit]
+        logging.debug("Running command to check systemd service {} status: {}".format(unit, " ".join(cmd)))
         p = subprocess.run(["systemctl", "is-active", "--quiet", unit])
         if p.returncode == 0:
-            return "running"
+            result = "running"
         else:
-            return "stopped"
+            result = "stopped"
+        logging.debug("Systemd service {} status is {}".format(unit, result))
+        return result
 
 def get_envvars(env_file='.env', set_environ=True, ignore_not_found_error=False, exclude_override=()):
     """
