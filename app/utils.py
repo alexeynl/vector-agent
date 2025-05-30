@@ -522,6 +522,7 @@ class VectorAgent:
             status = "fail"
         else:
             status = "ok"
+            status_messages = ["Everything OK"]
         
         result["status"] = status
         result["message"] = "|".join(status_messages)
