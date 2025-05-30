@@ -26,7 +26,7 @@ default_valid_config_dir =      "03-valid"
 default_active_config_dir =     "04-active"
 default_vector_reload_timeout = 60*2 #2 minutes
 default_vector_configs_workdir = "/opt/vector-agent/vector-confdir"
-default_apply_rules_config_name = "apply_rules.yaml"
+default_apply_rules_config_name = "apply-rules.yaml"
 
 class VectorAgent:
     def __init__(self, config_path):
