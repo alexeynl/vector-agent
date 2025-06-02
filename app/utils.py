@@ -465,6 +465,8 @@ class VectorAgent:
                         tmp_symlink = self._active_config_path + "_" + self._active_config_hash
                         os.symlink(current_active_config_path, tmp_symlink, target_is_directory=False)
                         os.rename(tmp_symlink, self._active_config_path)
+                        logger.info("Reload Vector service to trigger config reloading")
+                        p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
                         logger.debug("Removing snapshot dir")
                         shutil.rmtree(snapshot_current_path)
                         logger.info("Finished to apply synced config")
