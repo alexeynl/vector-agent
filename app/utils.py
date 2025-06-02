@@ -424,32 +424,25 @@ class VectorAgent:
                 self._apply_status = "applying"
                 if self._vector_service_status == "running":
                     logger.info("Vector service is running, trying to apply config")
-                    logger.info("Make a backup of current active config")
+                    #logger.info("Make a backup of current active config")
                     current_active_config_path = os.path.realpath(self._active_config_path)
-                    #current_active_config_backup_path = current_active_config_path + "_" + "backup"
-                    #logger.debug("Copy files from {} to {}".format(current_active_config_path, current_active_config_backup_path))
-                    #shutil.copytree(current_active_config_path, current_active_config_backup_path)
+                    logger.debug("Changing symlink {} from current active config {} to snapshot {}".format(self._active_config_path, current_active_config_path, snapshot_current_path))
                     # replace symlink
-                    tmp_symlink = self._active_config_path + target_hash
+                    tmp_symlink = self._active_config_path + "_" + target_hash
                     os.symlink(snapshot_current_path, tmp_symlink, target_is_directory=False)
                     os.rename(tmp_symlink, self._active_config_path)
-                    # remove original current active config, keep only backup
-
-                    logger.debug("Wait for \"Vector has reloaded\" in Vector log")
-                    timeout = time.time() + self._vector_reload_timeout
-                    vector_reload_success = False
                     logger.info("Reload Vector service to trigger config reloading")
+                    vector_reload_success = False
                     p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
                     with open(self._vector_log_path, "r") as f:
+                        logger.debug("Waiting for \"Vector has reloaded\" in Vector log")
                         lines = follow(f, self._vector_reload_timeout)
                         while (line := next(lines, None)) is not None:
-                            #logger.debug("Time: {}".format(time.time()))
                             if "Vector has reloaded" in line:
                                 vector_reload_success = True
                                 break
                     if vector_reload_success:
                         logger.info("Successed to apply new config to running Vector")
-                        #logger.debug("Remove backup of old config {}".format(current_active_config_backup_path))
                         logger.debug("Remove old config {}".format(current_active_config_path))
                         shutil.rmtree(current_active_config_path)
                         self._active_git_branch = target_branch
@@ -459,15 +452,25 @@ class VectorAgent:
                         return 0
                     else:
                         logger.error("Failed to apply new config to running Vector")
-                        logger.info("Restoring current active config")
-                        #os.rename(current_active_config_path + "_" + "backup", current_active_config_path)
-                        # revert back symlink to current active config
+                        logger.info("Restoring current active config {}".format(current_active_config_path))
+                        logger.debug("Changing symlink {} from current active config {} to snapshot {}".format(self._active_config_path, snapshot_current_path, current_active_config_path))
                         tmp_symlink = self._active_config_path + "_" + self._active_config_hash
                         os.symlink(current_active_config_path, tmp_symlink, target_is_directory=False)
                         os.rename(tmp_symlink, self._active_config_path)
                         logger.info("Reload Vector service to trigger config reloading")
+                        vector_reload_success = False
                         p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
-                        logger.debug("Removing snapshot dir")
+                        with open(self._vector_log_path, "r") as f:
+                            logger.debug("Waiting for \"Vector has reloaded\" in Vector log")
+                            lines = follow(f, self._vector_reload_timeout)
+                            while (line := next(lines, None)) is not None:
+                                if "Vector has reloaded" in line:
+                                    vector_reload_success = True
+                                    break
+                        if not vector_reload_success:
+                            logger.error("Could not reload Vector with old config. Restarting service...")
+                            p = subprocess.run(["systemctl", "restart", "--quiet", self._vector_systemd_unit])
+                        logger.debug("Removing snapshot dir: {}".format(snapshot_current_path))
                         shutil.rmtree(snapshot_current_path)
                         logger.info("Finished to apply synced config")
                         self._apply_status = "failed"
