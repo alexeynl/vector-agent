@@ -322,7 +322,7 @@ class VectorAgent:
         self._apply_config_specs(self._apply_rules_config_path, self._get_host_name(), self._config_path)
 
     def _refresh_vector_service_status(self):
-        p = subprocess.run(["systemctl", "is-active", "--quiet", "vector.service"])
+        p = subprocess.run(["systemctl", "is-active", "--quiet", self._vector_systemd_unit])
         if p.returncode == 0:
             if self._vector_service_status != "restart_pending" and self._vector_service_status != "stop_pending":
                 self._vector_service_status = "running"
@@ -391,7 +391,7 @@ class VectorAgent:
             logger.info("No specs found for current host")
             if self._vector_service_status != "stopped":
                 logger.info("Stopping vector")
-                p = subprocess.run(["systemctl", "stop", "--quiet", "vector.service"])
+                p = subprocess.run(["systemctl", "stop", "--quiet", self._vector_systemd_unit])
                 if p.returncode == 0:
                     logger.info("Vector successfully stopped")
                 else:
@@ -426,9 +426,9 @@ class VectorAgent:
                     logger.info("Vector service is running, trying to apply config")
                     logger.info("Make a backup of current active config")
                     current_active_config_path = os.path.realpath(self._active_config_path)
-                    current_active_config_backup_path = current_active_config_path + "_" + "backup"
-                    logger.debug("Copy files from {} to {}".format(current_active_config_path, current_active_config_backup_path))
-                    shutil.copytree(current_active_config_path, current_active_config_backup_path)
+                    #current_active_config_backup_path = current_active_config_path + "_" + "backup"
+                    #logger.debug("Copy files from {} to {}".format(current_active_config_path, current_active_config_backup_path))
+                    #shutil.copytree(current_active_config_path, current_active_config_backup_path)
                     # replace symlink
                     tmp_symlink = self._active_config_path + target_hash
                     os.symlink(snapshot_current_path, tmp_symlink, target_is_directory=False)
@@ -439,17 +439,19 @@ class VectorAgent:
                     timeout = time.time() + self._vector_reload_timeout
                     vector_reload_success = False
                     logger.info("Reload Vector service to trigger config reloading")
-                    p = subprocess.run(["systemctl", "reload", "--quiet", "vector.service"])
+                    p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
                     with open(self._vector_log_path, "r") as f:
-                        lines = follow(f)
-                        while (line := next(lines, None)) is not None and time.time() < timeout:
+                        lines = follow(f, self._vector_reload_timeout)
+                        while (line := next(lines, None)) is not None:
+                            #logger.debug("Time: {}".format(time.time()))
                             if "Vector has reloaded" in line:
                                 vector_reload_success = True
                                 break
                     if vector_reload_success:
                         logger.info("Successed to apply new config to running Vector")
-                        logger.debug("Remove backup of old config {}".format(current_active_config_backup_path))
-                        shutil.rmtree(current_active_config_path + "_" + "backup")
+                        #logger.debug("Remove backup of old config {}".format(current_active_config_backup_path))
+                        logger.debug("Remove old config {}".format(current_active_config_path))
+                        shutil.rmtree(current_active_config_path)
                         self._active_git_branch = target_branch
                         self._active_config_hash = target_hash
                         self._apply_status = "successed"
@@ -457,12 +459,14 @@ class VectorAgent:
                         return 0
                     else:
                         logger.error("Failed to apply new config to running Vector")
-                        logger.info("Restoring current active config from backup")
-                        os.rename(current_active_config_path + "_" + "backup", current_active_config_path)
+                        logger.info("Restoring current active config")
+                        #os.rename(current_active_config_path + "_" + "backup", current_active_config_path)
                         # revert back symlink to current active config
-                        tmp_symlink = current_active_config_path + self._active_config_hash
+                        tmp_symlink = self._active_config_path + "_" + self._active_config_hash
                         os.symlink(current_active_config_path, tmp_symlink, target_is_directory=False)
                         os.rename(tmp_symlink, self._active_config_path)
+                        logger.debug("Removing snapshot dir")
+                        shutil.rmtree(snapshot_current_path)
                         logger.info("Finished to apply synced config")
                         self._apply_status = "failed"
                         return 1
@@ -475,7 +479,7 @@ class VectorAgent:
                     logger.debug("Creating symlink from {} to {}".format(symlink_source_path, self._active_config_path))
                     os.symlink(symlink_source_path, self._active_config_path, target_is_directory=False)
                     logger.info("Trying to start Vector service")
-                    p = subprocess.run(["systemctl", "start", "--quiet", "vector.service"])
+                    p = subprocess.run(["systemctl", "start", "--quiet", self._vector_systemd_unit])
                     if p.returncode == 0:
                         logger.info("Vector successfully started")
                         self._active_git_branch = target_branch
@@ -590,9 +594,10 @@ def load_envs(files):
         result = result | new_dict
     return result
 
-def follow(thefile):
+def follow(thefile, timeout_sec):
+    stop_time = time.time() + timeout_sec
     thefile.seek(0,2) # Go to the end of the file
-    while True:
+    while time.time() < stop_time:
         line = thefile.readline()
         if not line:
             time.sleep(0.1) # Sleep briefly
