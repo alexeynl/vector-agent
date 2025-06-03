@@ -417,14 +417,14 @@ class VectorAgent:
                 logger.debug("Moving validated snapshot to validated dir: {}".format(valid_snapshot_path))
                 shutil.move(snapshot_current_path, valid_snapshot_path)
                 snapshot_current_path = valid_snapshot_path
-                logger.debug("Snapshot current path:".format(snapshot_current_path))
+                logger.debug("Snapshot current path:{}".format(snapshot_current_path))
                 logger.info("Checking if vector service is running")
                 self._refresh_vector_service_status()
                 logger.debug("Vector status is: {}".format(self._vector_service_status))
                 self._apply_status = "applying"
                 if self._vector_service_status == "running":
                     logger.info("Vector service is running, trying to apply config")
-                    #logger.info("Make a backup of current active config")
+
                     current_active_config_path = os.path.realpath(self._active_config_path)
                     logger.debug("Changing symlink {} from current active config {} to snapshot {}".format(self._active_config_path, current_active_config_path, snapshot_current_path))
                     # replace symlink
