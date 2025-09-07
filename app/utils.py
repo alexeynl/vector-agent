@@ -342,14 +342,18 @@ class VectorAgent:
             cmd = [self._vector_bin_path, "validate", "-C", config_dirs_str]
         logger.info("Running validation command: {}".format(" ".join(cmd)))
         p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=envs)
-        for line in p.stdout.splitlines():
-            logger.info("vector stdout: {}".format(line.decode(encoding="utf8")))
-        for line in p.stderr.splitlines():
-            logger.error("vector stderr: {}".format(line.decode(encoding="utf8")))
+        # vector has bug: --color=never always ignored, removing ansi escape characters from command output manually
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-9;]*[a-zA-Z])')
+        clean_stdout = ansi_escape.sub('', p.stdout.decode("utf8"))
+        clean_stderr = ansi_escape.sub('', p.stderr.decode("utf8"))
+        for line in clean_stdout.splitlines():
+            logger.info("vector stdout: {}".format(line))
+        for line in clean_stderr.splitlines():
+            logger.error("vector stderr: {}".format(line))
         if p.returncode != 0:
             status = "fail"
             result["reason"] = "Incorrect config"
-            result["output"] = p.stdout
+            result["output"] = clean_stdout
         result["status"] = status
         return result
 
