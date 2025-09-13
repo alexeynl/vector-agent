@@ -9,7 +9,6 @@ vector:
   log_path: /var/log/messages
   systemd_unit: vector.service
 vector-agent:
-  apply_timeout_sec: 180
   config_root_dir: .
   config_subdir_patterns: []
   configs_workdir: /opt/vector-agent/vector-confdir
@@ -17,6 +16,7 @@ vector-agent:
     input:
     - /etc/vector/.env
     output: /opt/vector-agent/.env-vector
+  reload_timeout_sec: 180
   repo:
     ssh_key_path: null
     ssh_known_hosts_path: null

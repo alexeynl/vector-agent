@@ -24,7 +24,7 @@ default_synced_config_dir =     "01-synced"
 default_hold_config_dir =       "02-hold"
 default_valid_config_dir =      "03-valid"
 default_active_config_dir =     "04-active"
-default_apply_timeout = 60*2 #2 minutes
+default_reload_timeout = 60*2 #2 minutes
 default_vector_configs_workdir = "/opt/vector-agent/vector-confdir"
 default_apply_rules_config_name = "apply-rules.yaml"
 
@@ -40,7 +40,7 @@ class VectorAgent:
         self._vector_log_path = default_vector_log_path
         self._vector_embedded_config_dirs = default_vector_embedded_config_dirs
         self._gitsync_bin_path = default_gitsync_bin_path
-        self._apply_timeout = default_apply_timeout
+        self._reload_timeout = default_reload_timeout
         self._apply_rules_config_name = default_apply_rules_config_name
         self._vector_config_root_dir = None
         self._vector_config_subdir_patterns = None
@@ -86,7 +86,7 @@ class VectorAgent:
         logger.debug("_active_config_path = {}".format(self._active_config_path))
         logger.debug("_vector_bin_path = {}".format(self._vector_bin_path))
         logger.debug("_gitsync_bin_path = {}".format(self._gitsync_bin_path))
-        logger.debug("_apply_timeout = {}".format(self._apply_timeout))
+        logger.debug("_reload_timeout = {}".format(self._reload_timeout))
         logger.debug("_vector_log_path = {}".format(self._vector_bin_path))
         logger.debug("_apply_rules_config_name = {}".format(self._apply_rules_config_name))
         logger.debug("_apply_rules_config_path = {}".format(self._apply_rules_config_path))
@@ -185,7 +185,7 @@ class VectorAgent:
                 pass
 
             try:
-                self._apply_timeout = data["vector-agent"]["apply_timeout_sec"]
+                self._reload_timeout = data["vector-agent"]["reload_timeout_sec"]
             except KeyError:
                 pass
 
@@ -445,7 +445,7 @@ class VectorAgent:
                     p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
                     with open(self._vector_log_path, "r") as f:
                         logger.debug("Waiting for \"Vector has reloaded\" in Vector log")
-                        lines = follow(f, self._apply_timeout)
+                        lines = follow(f, self._reload_timeout)
                         while (line := next(lines, None)) is not None:
                             if "Vector has reloaded" in line:
                                 vector_reload_success = True
@@ -460,7 +460,7 @@ class VectorAgent:
                         logger.info("Finished to apply synced config")
                         return 0
                     else:
-                        logger.error("Failed to apply new config to running Vector")
+                        logger.error("Failed to apply new config to running Vector: reload timeout exceeded")
                         logger.info("Restoring current active config {}".format(current_active_config_path))
                         logger.debug("Changing symlink {} from current active config {} to snapshot {}".format(self._active_config_path, snapshot_current_path, current_active_config_path))
                         tmp_symlink = self._active_config_path + "_" + self._active_config_hash
@@ -471,7 +471,7 @@ class VectorAgent:
                         p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
                         with open(self._vector_log_path, "r") as f:
                             logger.debug("Waiting for \"Vector has reloaded\" in Vector log")
-                            lines = follow(f, self._apply_timeout)
+                            lines = follow(f, self._reload_timeout)
                             while (line := next(lines, None)) is not None:
                                 if "Vector has reloaded" in line:
                                     vector_reload_success = True
