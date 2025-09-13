@@ -346,7 +346,12 @@ class VectorAgent:
             config_dirs_str = ",".join([os.path.join(config_path, subdir) for subdir in self._vector_config_subdir_patterns])
             cmd = [self._vector_bin_path, "validate", "-C", config_dirs_str]
         logger.info("Running validation command: {}".format(" ".join(cmd)))
+        validation_start_time = time.perf_counter()
         p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=envs)
+        validation_end_time = time.perf_counter()
+        validation_duration = validation_end_time - validation_start_time
+        logger.info("Validation command finish.")
+        logger.info("Validation duration: {} seconds.".format(validation_duration))
         # vector has bug: --color=never always ignored, removing ansi escape characters from command output manually
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-9;]*[a-zA-Z])')
         clean_stdout = ansi_escape.sub('', p.stdout.decode("utf8"))
@@ -360,6 +365,7 @@ class VectorAgent:
             result["reason"] = "Incorrect config"
             result["output"] = clean_stdout
         result["status"] = status
+        result["duration"] = validation_duration
         return result
 
     def apply_config(self, config_path: str):
