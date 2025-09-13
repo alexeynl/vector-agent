@@ -9,6 +9,7 @@ vector:
   log_path: /var/log/messages
   systemd_unit: vector.service
 vector-agent:
+  apply_timeout_sec: 180
   config_root_dir: .
   config_subdir_patterns: []
   configs_workdir: /opt/vector-agent/vector-confdir
