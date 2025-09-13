@@ -460,8 +460,8 @@ class VectorAgent:
                                 break
                     if vector_reload_success:
                         logger.info("Successed to apply new config to running Vector")
-                        reload_diration = reload_end_time - reload_start_time
-                        logger.info("Vector config reload duration: {} seconds".format(reload_diration))
+                        reload_duration = reload_end_time - reload_start_time
+                        logger.info("Vector config reload duration: {} seconds".format(reload_duration))
                         logger.debug("Remove old config {}".format(current_active_config_path))
                         shutil.rmtree(current_active_config_path)
                         self._active_git_branch = target_branch
