@@ -448,16 +448,20 @@ class VectorAgent:
                     os.rename(tmp_symlink, self._active_config_path)
                     logger.info("Reload Vector service to trigger config reloading")
                     vector_reload_success = False
+                    reload_start_time = time.perf_counter()
                     p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
                     with open(self._vector_log_path, "r") as f:
                         logger.debug("Waiting for \"Vector has reloaded\" in Vector log")
                         lines = follow(f, self._reload_timeout)
                         while (line := next(lines, None)) is not None:
                             if "Vector has reloaded" in line:
+                                reload_end_time = time.perf_counter()
                                 vector_reload_success = True
                                 break
                     if vector_reload_success:
                         logger.info("Successed to apply new config to running Vector")
+                        reload_diration = reload_end_time - reload_start_time
+                        logger.info("Vector reload config duration: {} seconds.".format(reload_diration))
                         logger.debug("Remove old config {}".format(current_active_config_path))
                         shutil.rmtree(current_active_config_path)
                         self._active_git_branch = target_branch
