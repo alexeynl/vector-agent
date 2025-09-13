@@ -351,7 +351,7 @@ class VectorAgent:
         validation_end_time = time.perf_counter()
         validation_duration = validation_end_time - validation_start_time
         logger.info("Validation command finish.")
-        logger.info("Validation duration: {} seconds.".format(validation_duration))
+        logger.info("Validation duration: {} seconds".format(validation_duration))
         # vector has bug: --color=never always ignored, removing ansi escape characters from command output manually
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-9;]*[a-zA-Z])')
         clean_stdout = ansi_escape.sub('', p.stdout.decode("utf8"))
@@ -461,7 +461,7 @@ class VectorAgent:
                     if vector_reload_success:
                         logger.info("Successed to apply new config to running Vector")
                         reload_diration = reload_end_time - reload_start_time
-                        logger.info("Vector config reload duration: {} seconds.".format(reload_diration))
+                        logger.info("Vector config reload duration: {} seconds".format(reload_diration))
                         logger.debug("Remove old config {}".format(current_active_config_path))
                         shutil.rmtree(current_active_config_path)
                         self._active_git_branch = target_branch
