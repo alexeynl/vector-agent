@@ -16,6 +16,7 @@ vector-agent:
     input:
     - /etc/vector/.env
     output: /opt/vector-agent/.env-vector
+  reload_method: auto # or manual
   reload_timeout_sec: 180
   repo:
     ssh_key_path: null

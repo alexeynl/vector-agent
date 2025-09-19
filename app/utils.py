@@ -24,6 +24,7 @@ default_synced_config_dir =     "01-synced"
 default_hold_config_dir =       "02-hold"
 default_valid_config_dir =      "03-valid"
 default_active_config_dir =     "04-active"
+default_reload_method = "auto"
 default_reload_timeout = 60*2 #2 minutes
 default_vector_configs_workdir = "/opt/vector-agent/vector-confdir"
 default_apply_rules_config_name = "apply-rules.yaml"
@@ -40,6 +41,7 @@ class VectorAgent:
         self._vector_log_path = default_vector_log_path
         self._vector_embedded_config_dirs = default_vector_embedded_config_dirs
         self._gitsync_bin_path = default_gitsync_bin_path
+        self._reload_method = default_reload_method
         self._reload_timeout = default_reload_timeout
         self._apply_rules_config_name = default_apply_rules_config_name
         self._vector_config_root_dir = None
@@ -86,6 +88,7 @@ class VectorAgent:
         logger.debug("_active_config_path = {}".format(self._active_config_path))
         logger.debug("_vector_bin_path = {}".format(self._vector_bin_path))
         logger.debug("_gitsync_bin_path = {}".format(self._gitsync_bin_path))
+        logger.debug("_reload_method = {}".format(self._reload_method))
         logger.debug("_reload_timeout = {}".format(self._reload_timeout))
         logger.debug("_vector_log_path = {}".format(self._vector_bin_path))
         logger.debug("_apply_rules_config_name = {}".format(self._apply_rules_config_name))
@@ -186,6 +189,11 @@ class VectorAgent:
 
             try:
                 self._reload_timeout = data["vector-agent"]["reload_timeout_sec"]
+            except KeyError:
+                pass
+
+            try:
+                self._reload_method = data["vector-agent"]["reload_method"]
             except KeyError:
                 pass
 
@@ -449,7 +457,8 @@ class VectorAgent:
                     logger.info("Reload Vector service to trigger config reloading")
                     vector_reload_success = False
                     reload_start_time = time.perf_counter()
-                    p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
+                    if self._reload_method == "manual":
+                        p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
                     with open(self._vector_log_path, "r") as f:
                         logger.debug("Waiting for \"Vector has reloaded\" in Vector log")
                         lines = follow(f, self._reload_timeout)
