@@ -454,10 +454,10 @@ class VectorAgent:
                     tmp_symlink = self._active_config_path + "_" + target_hash
                     os.symlink(snapshot_current_path, tmp_symlink, target_is_directory=False)
                     os.rename(tmp_symlink, self._active_config_path)
-                    logger.info("Reload Vector service to trigger config reloading")
                     vector_reload_success = False
                     reload_start_time = time.perf_counter()
                     if self._reload_method == "manual":
+                        logger.info("Reload Vector service to trigger config reloading")
                         p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
                     with open(self._vector_log_path, "r") as f:
                         logger.debug("Waiting for \"Vector has reloaded\" in Vector log")
@@ -485,9 +485,10 @@ class VectorAgent:
                         tmp_symlink = self._active_config_path + "_" + self._active_config_hash
                         os.symlink(current_active_config_path, tmp_symlink, target_is_directory=False)
                         os.rename(tmp_symlink, self._active_config_path)
-                        logger.info("Reload Vector service to trigger config reloading")
                         vector_reload_success = False
-                        p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
+                        if self._reload_method == "manual":
+                            logger.info("Reload Vector service to trigger config reloading")
+                            p = subprocess.run(["systemctl", "reload", "--quiet", self._vector_systemd_unit])
                         with open(self._vector_log_path, "r") as f:
                             logger.debug("Waiting for \"Vector has reloaded\" in Vector log")
                             lines = follow(f, self._reload_timeout)
