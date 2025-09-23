@@ -447,20 +447,15 @@ class VectorAgent:
                 self._apply_status = "applying"
                 if self._vector_service_status == "running":
                     logger.info("Vector service is running, trying to apply config")
-                    current_active_config_path = os.path.realpath(self._active_config_path)
-                    shutil.copytree(self._synced_config_path, hold_snapshot_path)
+                    current_active_config_path = os.path.join(self._valid_config_path, self._active_config_hash)
                     # need to delete current active config to vector reload, so create a temp backup
-                    current_active_config_backup_path = current_active_config_path + "_backup"
-                    logger.debug("Creating backup {} of current active config {}".format(current_active_config_backup_path, current_active_config_path))
-                    shutil.copytree(current_active_config_path, current_active_config_backup_path)
-                    logger.debug("Changing symlink {} from current active config {} to snapshot {}".format(self._active_config_path, current_active_config_path, snapshot_current_path))
-                    os.rename(tmp_symlink, self._active_config_path)
-                    # replace symlink
-                    tmp_symlink = self._active_config_path + "_" + target_hash
-                    os.symlink(snapshot_current_path, tmp_symlink, target_is_directory=False)
-                    os.rename(tmp_symlink, self._active_config_path)
-                    # deleting current active config to triger config reload
-                    shutil.rmtree(current_active_config_path)
+                    snapshot_current_copy_path = snapshot_current_path + "_copy"
+                    logger.debug("Make a temp copy {} of snapshot {} to replace active config".format(snapshot_current_copy_path, snapshot_current_path))
+                    shutil.copytree(snapshot_current_path, snapshot_current_copy_path)
+                    logger.debug("Removing active config {}".format(self._active_config_path))
+                    shutil.rmtree(self._active_config_path)
+                    logger.debug("Replace active config {} with snapshot temp copy {}".format(snapshot_current_copy_path))
+                    os.replace(snapshot_current_copy_path, self._active_config_path)
                     vector_reload_success = False
                     reload_start_time = time.perf_counter()
                     if self._reload_method == "manual":
@@ -478,8 +473,8 @@ class VectorAgent:
                         logger.info("Successed to apply new config to running Vector")
                         reload_duration = reload_end_time - reload_start_time
                         logger.info("Vector config reload duration: {} seconds".format(reload_duration))
-                        logger.debug("Remove backup of old config {}".format(current_active_config_backup_path))
-                        shutil.rmtree(current_active_config_backup_path)
+                        logger.debug("Remove current active config {}".format(current_active_config_path))
+                        shutil.rmtree(current_active_config_path)
                         self._active_git_branch = target_branch
                         self._active_config_hash = target_hash
                         self._apply_status = "successed"
@@ -488,13 +483,14 @@ class VectorAgent:
                     else:
                         logger.error("Failed to apply new config to running Vector: reload timeout exceeded")
                         logger.info("Restoring current active config {}".format(current_active_config_path))
-                        # restore current active config from backup
-                        os.rename(current_active_config_backup_path, current_active_config_path)
-                        logger.debug("Changing symlink {} from current active config {} to snapshot {}".format(self._active_config_path, snapshot_current_path, current_active_config_path))
-                        tmp_symlink = self._active_config_path + "_" + self._active_config_hash
-                        os.symlink(current_active_config_path, tmp_symlink, target_is_directory=False)
-                        os.rename(tmp_symlink, self._active_config_path)
-                        current_active_config_backup_path
+                        # restore current active config
+                        current_active_config_copy_path = current_active_config_path + "_copy"
+                        logger.debug("Make a temp copy {} of current active config {} to replace active config".format(current_active_config_copy_path, current_active_config_path))
+                        shutil.copytree(current_active_config_path, current_active_config_copy_path)
+                        logger.debug("Removing active config {}".format(self._active_config_path))
+                        shutil.rmtree(self._active_config_path)
+                        logger.debug("Replace active config {} with temp copy active config {}".format(current_active_config_copy_path))
+                        os.replace( current_active_config_copy_path, self._active_config_path)
                         vector_reload_success = False
                         if self._reload_method == "manual":
                             logger.info("Reload Vector service to trigger config reloading")
