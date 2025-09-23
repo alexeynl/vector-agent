@@ -454,7 +454,7 @@ class VectorAgent:
                     shutil.copytree(snapshot_current_path, snapshot_current_copy_path)
                     logger.debug("Removing active config {}".format(self._active_config_path))
                     shutil.rmtree(self._active_config_path)
-                    logger.debug("Replace active config {} with snapshot temp copy {}".format(snapshot_current_copy_path))
+                    logger.debug("Replace active config {} with snapshot temp copy {}".format(snapshot_current_copy_path, self._active_config_path))
                     os.replace(snapshot_current_copy_path, self._active_config_path)
                     vector_reload_success = False
                     reload_start_time = time.perf_counter()
