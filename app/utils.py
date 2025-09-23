@@ -513,11 +513,10 @@ class VectorAgent:
                 else:
                     logger.info("Make validated snapshot as active")
                     if self._vector_config_root_dir == ".":
-                        symlink_source_path = snapshot_current_path
+                        source_path = snapshot_current_path
                     else:
-                        symlink_source_path = os.path.join(snapshot_current_path, self._vector_config_root_dir)
-                    logger.debug("Creating symlink from {} to {}".format(symlink_source_path, self._active_config_path))
-                    os.symlink(symlink_source_path, self._active_config_path, target_is_directory=False)
+                        source_path = os.path.join(snapshot_current_path, self._vector_config_root_dir)
+                    logger.debug("Copy validated snapshot from {} to {}".format(source_path, self._active_config_path))
                     logger.info("Trying to start Vector service")
                     p = subprocess.run(["systemctl", "start", "--quiet", self._vector_systemd_unit])
                     if p.returncode == 0:
